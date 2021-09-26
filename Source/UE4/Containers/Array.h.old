@@ -1,0 +1,63 @@
+#pragma once
+
+#include "HAL/Allocator/AnsiAllocator.h"
+#include "HAL/Allocator/DefaultAllocatorPolicies.h"
+#include "ChooseClass.h"
+#include <cassert>
+
+template<typename InElementType, typename InAllocator = FHeapAllocator>
+class TArray
+{
+	template <typename OtherInElementType, typename OtherAllocator>
+	friend class TArray;
+
+public:
+	typedef typename InAllocator::SizeType SizeType;
+	typedef InElementType ElementType;
+	typedef InAllocator   Allocator;
+
+	typedef typename TChooseClass<
+		Allocator::NeedsElementType,
+		typename Allocator::template ForElementType<ElementType>,
+		typename Allocator::ForAnyElementType
+	>::Result ElementAllocatorType;
+
+	static_assert(TIsSigned<SizeType>::Value, "TArray only supports signed index types");
+
+
+	#if TARRAY_RANGED_FOR_CHECKS
+		typedef TCheckedPointerIterator<      ElementType, SizeType> RangedForIteratorType;
+		typedef TCheckedPointerIterator<const ElementType, SizeType> RangedForConstIteratorType;
+	#else
+		typedef       ElementType* RangedForIteratorType;
+		typedef const ElementType* RangedForConstIteratorType;
+	#endif
+
+public:
+
+	/**
+	 * DO NOT USE DIRECTLY
+	 * STL-like iterators to enable range-based for loop support.
+	 */
+	#if TARRAY_RANGED_FOR_CHECKS
+		RangedForIteratorType      begin()       { return RangedForIteratorType     (ArrayNum, GetData()); }
+		RangedForConstIteratorType begin() const { return RangedForConstIteratorType(ArrayNum, GetData()); }
+		RangedForIteratorType      end  ()       { return RangedForIteratorType     (ArrayNum, GetData() + Num()); }
+		RangedForConstIteratorType end  () const { return RangedForConstIteratorType(ArrayNum, GetData() + Num()); }
+	#else
+		RangedForIteratorType      begin()       { return GetData(); }
+		RangedForConstIteratorType begin() const { return GetData(); }
+		RangedForIteratorType      end()         { return GetData() + Num(); }
+		RangedForConstIteratorType end() const   { return GetData() + Num(); }
+	#endif
+
+protected:
+
+	template<typename ElementType, typename Allocator>
+	friend class TIndirectArray;
+
+	ElementAllocatorType AllocatorInstance;
+	SizeType             ArrayNum;
+	SizeType             ArrayMax;
+};
+

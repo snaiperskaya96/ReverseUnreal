@@ -1,0 +1,11 @@
+FNamePool 
+  - static FNamePool* NamePoolData 
+    - FNameEntryAllocator Entries 
+      - 	mutable FRWLock Lock;
+      -	uint32 CurrentBlock = 0;
+	  - uint32 CurrentByteCursor = 0;
+	  - uint8* Blocks[FNameMaxBlocks] = {};
+
+
+I've found the offsets. 
+Turns out that GNames is not how UE4 refers to it (it uses a function called GetNames() which uses a static local variable called "Names" inside). It uses the name GUObjectArray for GObjects. I wish there were someone telling me this.

@@ -1,0 +1,6 @@
+[submodule "ThirdParty/kiero"]
+	path = ThirdParty/kiero
+	url = https://github.com/Rebzzel/kiero
+[submodule "Source/ThirdParty/imgui"]
+	path = Source/ThirdParty/imgui
+	url = git@github.com:ocornut/imgui.git

@@ -1,0 +1,148 @@
+#pragma once 
+
+#include "Pair.h"
+#include "HAL/Allocator/DefaultAllocatorPolicies.h"
+#include "TypeTraits.h"
+#include "Set.h"
+#include "ChooseClass.h"
+
+template <typename AllocatorType, typename InDerivedType = void>
+class TScriptMap;
+
+template <typename KeyType, typename ValueType, typename SetAllocator, typename KeyFuncs>
+class TMapBase
+{
+	template <typename OtherKeyType, typename OtherValueType, typename OtherSetAllocator, typename OtherKeyFuncs>
+	friend class TMapBase;
+
+	friend struct TContainerTraits<TMapBase>;
+
+public:
+	static const bool SupportsFreezeMemoryImage = TAllocatorTraits<SetAllocator>::SupportsFreezeMemoryImage;
+
+	typedef typename TTypeTraits<KeyType  >::ConstPointerType KeyConstPointerType;
+	typedef typename TTypeTraits<KeyType  >::ConstInitType    KeyInitType;
+	typedef typename TTypeTraits<ValueType>::ConstInitType    ValueInitType;
+	typedef TPair<KeyType, ValueType> ElementType;
+protected:
+	typedef TSet<ElementType, KeyFuncs, SetAllocator> ElementSetType;
+
+	/** The base of TMapBase iterators. */
+	template<bool bConst, bool bRangedFor = false>
+	class TBaseIterator
+	{
+	public:
+		typedef typename TChooseClass<
+			bConst,
+			typename TChooseClass<bRangedFor, typename ElementSetType::TRangedForConstIterator, typename ElementSetType::TConstIterator>::Result,
+			typename TChooseClass<bRangedFor, typename ElementSetType::TRangedForIterator, typename ElementSetType::TIterator     >::Result
+		>::Result PairItType;
+	private:
+		typedef typename TChooseClass<bConst, const TMapBase, TMapBase>::Result MapType;
+		typedef typename TChooseClass<bConst, const KeyType, KeyType>::Result ItKeyType;
+		typedef typename TChooseClass<bConst, const ValueType, ValueType>::Result ItValueType;
+		typedef typename TChooseClass<bConst, const typename ElementSetType::ElementType, typename ElementSetType::ElementType>::Result PairType;
+
+	public:
+
+		PairItType PairIt;
+	};
+
+	/** The base type of iterators that iterate over the values associated with a specified key. */
+	template<bool bConst>
+	class TBaseKeyIterator
+	{
+	private:
+		typedef typename TChooseClass<bConst, typename ElementSetType::TConstKeyIterator, typename ElementSetType::TKeyIterator>::Result SetItType;
+		typedef typename TChooseClass<bConst, const KeyType, KeyType>::Result ItKeyType;
+		typedef typename TChooseClass<bConst, const ValueType, ValueType>::Result ItValueType;
+
+	public:
+		SetItType SetIt;
+	};
+
+	/** A set of the key-value pairs in the map. */
+	ElementSetType Pairs;
+
+public:
+	/** Map iterator. */
+	class TIterator : public TBaseIterator<false>
+	{
+	public:
+		TMapBase& Map;
+		bool      bElementsHaveBeenRemoved;
+		bool      bRequiresRehashOnRemoval;
+	};
+
+	/** Const map iterator. */
+	class TConstIterator : public TBaseIterator<true>
+	{
+	};
+
+	using TRangedForIterator = TBaseIterator<false, true>;
+	using TRangedForConstIterator = TBaseIterator<true, true>;
+
+	/** Iterates over values associated with a specified key in a const map. */
+	class TConstKeyIterator : public TBaseKeyIterator<true>
+	{
+	};
+
+	/** Iterates over values associated with a specified key in a map. */
+	class TKeyIterator : public TBaseKeyIterator<false>
+	{
+	};
+
+public:
+	/**
+	 * DO NOT USE DIRECTLY
+	 * STL-like iterators to enable range-based for loop support.
+	 */
+	TRangedForIterator      begin() { return TRangedForIterator(Pairs.begin()); }
+	TRangedForConstIterator begin() const { return TRangedForConstIterator(Pairs.begin()); }
+	TRangedForIterator      end() { return TRangedForIterator(Pairs.end()); }
+	TRangedForConstIterator end() const { return TRangedForConstIterator(Pairs.end()); }
+};
+
+template<typename KeyType, typename ValueType, bool bInAllowDuplicateKeys>
+struct TDefaultMapHashableKeyFuncs : TDefaultMapKeyFuncs<KeyType, ValueType, bInAllowDuplicateKeys>
+{
+	// Check that the key type is actually hashable
+	//
+	// If this line fails to compile then your key doesn't have
+	// a GetTypeHash() overload.
+	using HashabilityCheck = decltype(GetTypeHash(DeclVal<const KeyType>()));
+};
+
+/** Defines how the map's pairs are hashed. */
+template<typename KeyType, typename ValueType, bool bInAllowDuplicateKeys>
+struct TDefaultMapKeyFuncs : BaseKeyFuncs<TPair<KeyType, ValueType>, KeyType, bInAllowDuplicateKeys>
+{
+	typedef typename TTypeTraits<KeyType>::ConstPointerType KeyInitType;
+	typedef const TPairInitializer<typename TTypeTraits<KeyType>::ConstInitType, typename TTypeTraits<ValueType>::ConstInitType>& ElementInitType;
+};
+
+
+
+template <typename KeyType, typename ValueType, typename SetAllocator, typename KeyFuncs>
+class TSortableMapBase : public TMapBase<KeyType, ValueType, SetAllocator, KeyFuncs>
+{
+	friend struct TContainerTraits<TSortableMapBase>;
+
+protected:
+	typedef TMapBase<KeyType, ValueType, SetAllocator, KeyFuncs> Super;
+};
+
+/** A TMapBase specialization that only allows a single value associated with each key.*/
+template<typename KeyType, typename ValueType, typename SetAllocator = FDefaultSetAllocator, typename KeyFuncs = TDefaultMapHashableKeyFuncs<KeyType,ValueType,false>>
+class TMap : public TSortableMapBase<KeyType, ValueType, SetAllocator, KeyFuncs>
+{
+	friend struct TContainerTraits<TMap>;
+
+	template <typename, typename>
+	friend class TScriptMap;
+
+public:
+	typedef TSortableMapBase<KeyType, ValueType, SetAllocator, KeyFuncs> Super;
+	typedef typename Super::KeyInitType KeyInitType;
+	typedef typename Super::KeyConstPointerType KeyConstPointerType;
+};
